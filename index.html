@@ -160,6 +160,8 @@ body{margin:0;-webkit-text-size-adjust:100%}
 img{max-width:100%}
 [hidden]{display:none!important}
 /* trip-password lock screen */
+.syncstat{font-size:11px;opacity:.85;margin-top:2px}
+.syncstat.warn{opacity:1;background:var(--ichou);color:#1a1f38;border-radius:6px;padding:1px 6px;display:inline-block;font-weight:700}
 .lock{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:var(--ai);padding:24px max(16px,env(safe-area-inset-left,0px)) 24px max(16px,env(safe-area-inset-right,0px))}
 .lockbox{width:min(360px,100%);background:var(--surface);color:var(--ink);border-radius:20px;padding:28px 22px;display:grid;gap:12px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.25)}
 .lockmark{justify-self:center;width:64px;height:64px;border-radius:16px;background:var(--ichou);color:#1a1f38;display:grid;place-items:center;font-weight:900;font-size:20px;letter-spacing:.05em}
@@ -212,14 +214,29 @@ img{max-width:100%}
     return {iv:b64(iv), ct:b64(ct)};
   }
   const plain = new Map();                                  // ct → decrypted object
-  async function dec(rec){
-    if (!rec || typeof rec.ct !== 'string') return undefined;
-    if (plain.has(rec.ct)) return plain.get(rec.ct);
+  const bad = new Set();                                    // records that failed to decrypt
+  async function dec(rec, where){
+    if (!rec || typeof rec.ct !== 'string') { if (rec !== undefined && rec !== null && where) bad.add(where); return undefined; }
+    if (plain.has(rec.ct)) { if (where) bad.delete(where); return plain.get(rec.ct); }
     try {
       const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv:unb64(rec.iv)}, K, unb64(rec.ct));
-      const o = Object.freeze(JSON.parse(td.decode(pt))); plain.set(rec.ct, o); return o;
-    } catch { return undefined; }
+      const o = Object.freeze(JSON.parse(td.decode(pt))); plain.set(rec.ct, o); if (where) bad.delete(where); return o;
+    } catch { if (where) bad.add(where); return undefined; }
   }
+  /* sync status shown under the title */
+  let lastSync = 0, mode = 'connecting';
+  function paintStatus(){
+    const el = document.getElementById('syncStat'); if (!el) return;
+    if (bad.size) { el.className = 'syncstat warn'; el.textContent = `⚠ 有 ${bad.size} 筆資料讀不到，金額可能少算，請截圖傳群組`; return; }
+    if (!navigator.onLine) { el.className = 'syncstat warn'; el.textContent = '⚠ 沒有網路，畫面可能不是最新，也存不了帳'; return; }
+    if (!lastSync) { el.className = 'syncstat'; el.textContent = '連線中…'; return; }
+    const sec = Math.round((Date.now() - lastSync) / 1000);
+    const stale = sec > 90;
+    el.className = 'syncstat' + (stale ? ' warn' : '');
+    el.textContent = stale ? `⚠ ${Math.round(sec/60)} 分鐘沒更新，往下拉重新整理` : `● 已同步${mode === 'live' ? '（即時）' : ''}`;
+  }
+  setInterval(paintStatus, 5000);
+  window.addEventListener('online', paintStatus); window.addEventListener('offline', paintStatus);
 
   /* ---- local mirror of the trip subtree, kept live by Firebase streaming ---- */
   let tree = {}, loaded = false;
@@ -236,13 +253,15 @@ img{max-width:100%}
   function notify(){ if (notifyQ) return; notifyQ = setTimeout(() => { notifyQ = null; subs.forEach(s => s.run()); }, 0); }
   const meta = {fromCache:false, hasPendingWrites:false};
   async function docSnap(path){
-    const d = await dec(getAt(path));
+    const d = await dec(getAt(path), path);
     return {id:path.split('/').pop(), exists:d !== undefined, data:() => d, metadata:meta};
   }
   async function colSnap(path){
     const node = getAt(path) || {};
     const docs = [];
-    for (const id of Object.keys(node)) { const d = await dec(node[id]); if (d !== undefined) docs.push({id, exists:true, data:() => d, metadata:meta}); }
+    for (const k of [...bad]) if (k.startsWith(path + '/') && !(k.slice(path.length + 1) in node)) bad.delete(k);
+    for (const id of Object.keys(node)) { const d = await dec(node[id], path + '/' + id); if (d !== undefined) docs.push({id, exists:true, data:() => d, metadata:meta}); }
+    paintStatus();
     return {docs, size:docs.length, empty:!docs.length, metadata:meta, docChanges:() => []};
   }
 
@@ -254,15 +273,16 @@ img{max-width:100%}
     if (!r.ok) throw err(r.status === 401 || r.status === 403 ? 'unavailable' : 'unavailable', 'HTTP ' + r.status);
     return r.json();
   }
-  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const newId = () => Date.now().toString(36) + Array.from(crypto.getRandomValues(new Uint8Array(6)), b => (b % 36).toString(36)).join('');
+  let writeSeq = 0;                                          // bumps on every local write
 
   function docRef(path){
     return {
       id: path.split('/').pop(), path,
       async get(){ return docSnap(path); },
-      async set(data){ const e = await enc(data); await rest('PUT', path, e); setAt(path, e); notify(); },
+      async set(data){ const e = await enc(data); writeSeq++; await rest('PUT', path, e); writeSeq++; setAt(path, e); lastSync = Date.now(); notify(); },
       async update(data){ const cur = await dec(getAt(path)); if (cur === undefined) throw err('invalid_argument', 'missing'); return this.set({...cur, ...data}); },
-      async delete(){ await rest('DELETE', path); setAt(path, null); notify(); },
+      async delete(){ writeSeq++; await rest('DELETE', path); writeSeq++; setAt(path, null); lastSync = Date.now(); notify(); },
       onSnapshot(next, error){
         const s = {run: async () => { try { next(await docSnap(path)); } catch (e) { error && error(e); } }};
         subs.add(s); if (loaded) s.run(); return () => subs.delete(s);
@@ -289,8 +309,15 @@ img{max-width:100%}
   /* ---- live updates: Firebase REST streaming, with polling as a fallback ---- */
   function startSync(){
     let pollTimer = null, es = null, failures = 0;
-    const poll = async () => { try { tree = (await rest('GET', '')) || {}; loaded = true; notify(); } catch {} };
-    const startPoll = () => { if (!pollTimer) { poll(); pollTimer = setInterval(poll, 8000); } };
+    // A full re-read. If this phone wrote something while the read was in flight, the read may
+    // predate that write, so it is thrown away and repeated instead of briefly hiding the new row.
+    const poll = async (tries = 0) => {
+      const seq = writeSeq;
+      let t; try { t = await rest('GET', ''); } catch { paintStatus(); return; }
+      if (seq !== writeSeq) { if (tries < 3) setTimeout(() => poll(tries + 1), 800); return; }
+      tree = t || {}; loaded = true; lastSync = Date.now(); notify();
+    };
+    const startPoll = () => { if (!pollTimer) { mode = 'poll'; poll(); pollTimer = setInterval(poll, 8000); } };
     const open = () => {
       try { es = new EventSource(`${BASE}/.json`); } catch { startPoll(); return; }
       const onData = (patch) => ev => {
@@ -298,18 +325,22 @@ img{max-width:100%}
         if (!m || typeof m.path !== 'string') return;
         if (patch && m.data && typeof m.data === 'object') { for (const [k, v] of Object.entries(m.data)) setAt((m.path === '/' ? '' : m.path) + '/' + k, v); }
         else setAt(m.path, m.data);
-        loaded = true; failures = 0; notify();
+        loaded = true; failures = 0; mode = 'live'; lastSync = Date.now(); notify();
       };
       es.addEventListener('put', onData(false));
       es.addEventListener('patch', onData(true));
+      es.addEventListener('keep-alive', () => { lastSync = Date.now(); paintStatus(); });
       es.addEventListener('cancel', () => { es.close(); startPoll(); });
       es.onerror = () => { if (++failures >= 3) { es.close(); startPoll(); } };
     };
     open();
     // Re-read everything when the phone comes back to the page (sleeping phones drop streams).
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') poll(); });
-    // Safety net: if streaming never delivered, poll.
+    // Safety nets: poll if streaming never delivered, re-read every minute while open, and after
+    // the network comes back.
     setTimeout(() => { if (!loaded) startPoll(); }, 6000);
+    setInterval(() => { if (document.visibilityState === 'visible') poll(); }, 60000);
+    window.addEventListener('online', () => poll());
   }
 
   /* ---- unlock ---- */
@@ -334,11 +365,16 @@ img{max-width:100%}
       lock.hidden = true; msg.textContent = '';
       startSync(); resolveDb(db); return true;
     }
-    msg.textContent = r === 'offline' ? '連不上網路，確認後再試一次。' : (silent ? '' : '密碼不對，再確認一次 LINE 群組裡的密碼。');
+    msg.textContent = r === 'offline' ? '連不上網路，有網路後會自動進入。' : (silent ? '' : '密碼不對，再確認一次 LINE 群組裡的密碼。');
     if (r === 'wrong') { try { localStorage.removeItem(LS_PW); } catch {} }
+    if (r === 'offline') { pendingPw = pw; }
     input.focus(); return false;
   }
-  form.addEventListener('submit', e => { e.preventDefault(); const pw = input.value.trim(); if (pw) attempt(pw, false); });
+  let pendingPw = null;
+  const retry = () => { if (pendingPw && !lock.hidden) attempt(pendingPw, true); };
+  window.addEventListener('online', retry);
+  setInterval(retry, 10000);
+  form.addEventListener('submit', e => { e.preventDefault(); const pw = input.value.trim() || pendingPw; if (pw) attempt(pw, false); });
   let saved = null; try { saved = localStorage.getItem(LS_PW); } catch {}
   if (saved) attempt(saved, true); else setTimeout(() => input.focus(), 50);
 
@@ -351,7 +387,7 @@ img{max-width:100%}
 <header>
   <div class="wrap">
     <div class="toprow">
-      <div><h1>東京・富士 四人行</h1><div class="dates">2026.11.22 – 11.27</div></div>
+      <div><h1>東京・富士 四人行</h1><div class="dates">2026.11.22 – 11.28</div><div class="syncstat" id="syncStat" role="status" aria-live="polite">連線中…</div></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="iconbtn" id="btnAir" type="button">✈ 機場交通</button><button class="iconbtn" id="btnMe" type="button">選我是誰</button><button class="iconbtn" id="btnSettings" type="button">成員・匯率</button></div>
     </div>
     <div class="route" aria-label="路線"><b>東京</b><i></i><span>11/23</span><i></i><b>河口湖</b><i></i><span>11/24</span><i></i><b>御殿場</b><i></i><b>豪德寺</b><i></i><b>東京</b><i></i><span>11/27・28 回台</span></div>
@@ -657,6 +693,10 @@ function expenseSheet(e, phase){
   const isNew = !e;
   const ph = e ? phaseOf(e) : (phase || 'trip');
   const pre = ph === 'pre';
+  // One document reference per form: pressing save again after a lost response overwrites the
+  // same record instead of creating a duplicate.
+  const ref = isNew ? db.collection('expenses').doc() : db.doc('expenses/' + e.id);
+  const created = e?.createdAt || Date.now();
   const st = e ? {...e, fee:e.fee||0, split:[...(e.split||[])]}
     : pre ? {date:todayStr(), title:'', amt:'', cur:'TWD', fee:0, cat:'flight', payer:defaultPayer(), split:S.members.map(m=>m.id)}
           : {date:defaultDate(), title:'', amt:'', cur:'JPY', fee:0, cat:'food', payer:defaultPayer(), split:S.members.map(m=>m.id)};
@@ -719,9 +759,11 @@ function expenseSheet(e, phase){
         st.split = Money.sharers(st.split, memberIds()).filter(id => memberIds().includes(id));
         if (!st.split.length) { toast('至少選一個人分攤'); return; }
         if (!st.date) { toast('請選日期'); return; }
-        const body = {date:st.date, title:st.title.trim(), amt, cur:st.cur, fee: st.cur === 'TWD' ? st.fee : 0, phase:ph, cat:st.cat, payer:st.payer, split:st.split, createdAt: e?.createdAt || Date.now()};
+        if (!S.settingsLoaded) { toast('匯率還在載入，等一下再存'); return; }
+        if (!isNew && !S.expenses.some(x => x.id === e.id)) { toast('這筆剛被別人刪掉了，沒有存。要的話請重新記一筆。'); closeSheet(); return; }
+        const body = {date:st.date, title:st.title.trim(), amt, cur:st.cur, fee: st.cur === 'TWD' ? st.fee : 0, phase:ph, cat:st.cat, payer:st.payer, split:st.split, createdAt: created};
         t.disabled = true;
-        const ok = await write(() => isNew ? db.collection('expenses').add(body) : db.doc('expenses/' + e.id).set(body));
+        const ok = await write(() => ref.set(body));
         if (ok) { closeSheet(); toast(isNew ? '記好了' : '已更新'); } else t.disabled = false;
       }
     });
@@ -731,7 +773,9 @@ function expenseSheet(e, phase){
 }
 
 function planSheet(p, day){
-  const isNew = !p; const d = p ? p.day : day; const prep = d === 'prep';
+  const isNew = !p;
+  const pRef = isNew ? db.collection('plan').doc() : db.doc('plan/' + p.id);
+  const pCreated = p?.createdAt || Date.now(); const d = p ? p.day : day; const prep = d === 'prep';
   const st = p ? {...p} : {day:d, time:'', text:'', note:'', kind: prep ? 'todo' : 'fixed', done:false};
   const dl = DAYS.find(x => x.id === d)?.label || d;
   openSheet(`<h2>${esc(dl)}・${isNew ? '加一項' : '修改'}</h2>
@@ -752,9 +796,10 @@ function planSheet(p, day){
       else { t.dataset.armed = '1'; t.textContent = '再按一次確定刪除'; }
     } else if (t.id === 'p-save') {
       const text = $('#p-text').value.trim(); if (!text) { toast('請填寫內容'); return; }
-      const body = {day:d, time: prep ? '' : ($('#p-time')?.value || ''), text, note:$('#p-note').value.trim(), kind:st.kind, done:!!st.done, createdAt: p?.createdAt || Date.now()};
+      if (!isNew && !S.plan.some(x => x.id === p.id)) { toast('這項剛被別人刪掉了，沒有存。'); closeSheet(); return; }
+      const body = {day:d, time: prep ? '' : ($('#p-time')?.value || ''), text, note:$('#p-note').value.trim(), kind:st.kind, done:!!st.done, createdAt: pCreated};
       t.disabled = true;
-      const ok = await write(() => isNew ? db.collection('plan').add(body) : db.doc('plan/' + p.id).set(body));
+      const ok = await write(() => pRef.set(body));
       if (ok) closeSheet(); else t.disabled = false;
     }
   });
