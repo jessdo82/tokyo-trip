@@ -1,0 +1,935 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#24387a">
+<title>東京富士四人行</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: one mobile column; sticky ticket-style header with route strip, tabbed body, bottom-sheet editor */
+:root{
+  --bg:#eef0f5; --surface:#ffffff; --sunk:#e4e7ef; --ink:#1a1f38; --muted:#5f6782; --line:#d7dbe6;
+  --ai:#24387a; --ai-soft:#e2e7f6; --ichou:#d99a0b; --ichou-soft:#fbefd0;
+  --pos:#1d7a53; --neg:#b8402c;
+  --sans:"Noto Sans TC",-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --r:14px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1220; --surface:#181c2d; --sunk:#12162a; --ink:#e8eaf4; --muted:#9aa1bc; --line:#2a3049;
+  --ai:#93a6ec; --ai-soft:#222b4d; --ichou:#f0bd45; --ichou-soft:#3a3018; --pos:#5cc898; --neg:#ee8670; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1220; --surface:#181c2d; --sunk:#12162a; --ink:#e8eaf4; --muted:#9aa1bc; --line:#2a3049;
+  --ai:#93a6ec; --ai-soft:#222b4d; --ichou:#f0bd45; --ichou-soft:#3a3018; --pos:#5cc898; --neg:#ee8670; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--ichou);outline-offset:2px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.wrap{max-width:640px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--ai)}
+
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--ai);color:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) header{color:#0f1220}}
+:root[data-theme="dark"] header{color:#0f1220}
+header .wrap{padding-block:14px 0}
+.toprow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{margin:0;font-size:19px;font-weight:900;letter-spacing:.02em;text-wrap:balance}
+.dates{font-family:var(--mono);font-size:12px;opacity:.8}
+.iconbtn{border:1px solid currentColor;background:transparent;border-radius:999px;padding:5px 12px;font-size:13px;opacity:.9}
+.route{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;overflow-x:auto;white-space:nowrap;scrollbar-width:none}
+.route span{opacity:.85}.route b{font-weight:700}
+.route i{flex:0 0 14px;height:1px;background:currentColor;opacity:.5}
+nav{display:flex;margin-top:12px}
+nav button{flex:1;border:0;background:transparent;padding:10px 0 12px;font-weight:700;font-size:14px;opacity:.65;border-bottom:3px solid transparent}
+nav button[aria-selected="true"]{opacity:1;border-bottom-color:var(--ichou)}
+
+main{padding-block:16px 120px}
+.banner{background:var(--ichou-soft);border:1px solid var(--ichou);border-radius:var(--r);padding:10px 14px;font-size:13px;margin-bottom:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.sum{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);overflow:hidden}
+.sum>div{background:var(--surface);padding:14px 16px;min-width:0}
+.lbl{font-size:12px;color:var(--muted);letter-spacing:.06em}
+.big{font-size:24px;font-weight:600}
+.sub{font-size:12px;color:var(--muted)}
+.people{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}
+.pchip{display:flex;align-items:baseline;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:13px}
+.pchip .num{color:var(--muted);font-size:12px}
+
+.filters{display:flex;gap:6px;overflow-x:auto;padding:12px 0 4px;scrollbar-width:none}
+.chip{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:13px}
+.chip[aria-pressed="true"]{background:var(--ai);border-color:var(--ai);color:var(--surface)}
+
+.day{margin-top:18px}
+.dayhead{display:flex;justify-content:space-between;align-items:baseline;padding:0 4px 6px;border-bottom:2px solid var(--ink)}
+.dayhead h2{margin:0;font-size:15px;font-weight:900}
+.dayhead h2 small{font-weight:500;color:var(--muted);margin-left:6px;font-size:12px}
+.row{display:grid;grid-template-columns:36px 1fr auto;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-bottom:1px dashed var(--line);background:transparent;padding:11px 4px}
+.row:hover{background:var(--sunk)}
+.cat{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:13px;font-weight:700;background:var(--ai-soft);color:var(--ai)}
+.row .t{font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .m{font-size:12px;color:var(--muted)}
+.row .a{text-align:right}
+.row .a .num{font-weight:600}
+.empty{text-align:center;color:var(--muted);padding:40px 16px}
+.empty b{display:block;color:var(--ink);font-size:16px;margin-bottom:4px}
+
+.fab{position:fixed;right:max(18px,calc(env(safe-area-inset-right,0px) + 18px));bottom:calc(env(safe-area-inset-bottom,0px) + 22px);z-index:6;border:0;border-radius:999px;background:var(--ichou);color:#1a1f38;font-weight:900;font-size:16px;padding:14px 22px;box-shadow:0 6px 20px rgba(20,25,60,.25)}
+
+/* settle */
+.bal{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:14px 16px}
+.bal+.bal{border-top:1px solid var(--line)}
+.bar{grid-column:1/-1;height:6px;background:var(--sunk);border-radius:3px;position:relative;overflow:hidden}
+.bar i{position:absolute;top:0;bottom:0;border-radius:3px}
+.pos{color:var(--pos)}.neg{color:var(--neg)}
+.xfer{display:flex;align-items:center;gap:10px;padding:14px 16px;flex-wrap:wrap}
+.xfer+.xfer{border-top:1px dashed var(--line)}
+.xfer .arrow{color:var(--muted);font-size:13px}
+.xfer .amt{margin-left:auto;text-align:right}
+h3{font-size:13px;letter-spacing:.08em;color:var(--muted);margin:22px 4px 8px;font-weight:700}
+.note{font-size:12px;color:var(--muted);margin:8px 4px}
+
+/* plan */
+.pday{margin-top:16px;overflow:hidden}
+.phead{background:var(--sunk);color:var(--ink);padding:10px 14px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.phead h2{margin:0;font-size:15px;font-weight:900}
+.phead .base{font-size:12px;color:var(--muted)}
+.item{display:grid;grid-template-columns:52px 1fr;gap:8px;width:100%;text-align:left;background:transparent;border:0;border-top:1px solid var(--line);padding:11px 14px}
+.item .time{font-family:var(--mono);font-size:13px;color:var(--muted);padding-top:1px}
+.item .txt{min-width:0}
+.item .txt b{font-weight:600}
+.item .txt p{margin:2px 0 0;font-size:13px;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
+.item.idea{background:repeating-linear-gradient(135deg,transparent 0 10px,var(--ichou-soft) 10px 11px)}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:0 7px;border-radius:999px;margin-right:6px;vertical-align:1px}
+.tag.fixed{background:var(--ai);color:var(--surface)}
+.tag.idea{background:var(--ichou);color:#1a1f38}
+.tag.done{background:var(--pos);color:var(--surface)}
+.additem{width:100%;border:0;border-top:1px solid var(--line);background:transparent;color:var(--ai);font-weight:700;padding:10px 14px;text-align:left;font-size:13px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:2px 4px 0}
+
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(10,12,25,.45);z-index:20}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;background:var(--surface);border-radius:20px 20px 0 0;max-height:92%;overflow-y:auto;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 18px)}
+.sheet .wrap{padding-block:18px 0;display:grid;gap:14px}
+.sheet h2{margin:0;font-size:17px;font-weight:900}
+.field{display:grid;gap:6px}
+.field>label,.field>.lbl{font-size:12px;color:var(--muted);letter-spacing:.06em}
+input[type=text],input[type=date],input[type=time],input[type=number],textarea,input:not([type]){width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px}
+textarea{min-height:64px;resize:vertical}
+.amtrow{display:flex;gap:8px}
+.amtrow input{font-family:var(--mono);font-size:26px;font-weight:600;flex:1;min-width:0}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:0 0 auto}
+.seg button{border:0;background:var(--bg);padding:0 14px;font-weight:700;font-size:13px}
+.seg button[aria-pressed="true"]{background:var(--ai);color:var(--surface)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.preview{font-size:13px;color:var(--muted)}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+.btn{border:0;border-radius:12px;padding:12px 18px;font-weight:700;background:var(--sunk)}
+.btn.primary{background:var(--ai);color:var(--surface);flex:1}
+.btn.danger{background:transparent;color:var(--neg);border:1px solid var(--neg)}
+.btn:disabled{opacity:.5}
+a.btn{text-decoration:none;color:var(--ink);display:inline-block}
+.airbtn{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;margin:4px 0 14px;padding:14px 16px;border:1px solid var(--ai);border-radius:var(--r);background:var(--ai-soft);color:var(--ink);text-align:left}
+.airbtn b{font-size:15px;font-weight:900}.airbtn span{font-size:12px;color:var(--muted)}.airbtn i{font-style:normal;font-weight:900;color:var(--ai);font-size:18px}
+.flight{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.flight .fn{font-family:var(--mono);font-weight:600;font-size:15px;color:var(--ai)}
+.flight .who{font-weight:700}
+.flight .tm{grid-column:1/-1;font-size:13px;color:var(--muted)}
+.flight .eta{grid-column:1/-1;font-size:14px;font-weight:700;margin-top:4px}
+.route-card{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.route-card h3{margin:0;padding:10px 14px;background:var(--sunk);color:var(--ink);font-size:14px;letter-spacing:0;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.route-card h3 small{font-weight:500;color:var(--muted)}
+.route-card ol{margin:0;padding:10px 14px 12px 34px;display:grid;gap:6px;font-size:14px}
+.route-card p{margin:0;padding:0 14px 12px;font-size:12px;color:var(--muted)}
+.timeline{display:grid;gap:0;border-left:3px solid var(--ichou);margin-left:6px;padding-left:14px}
+.timeline div{position:relative;padding:4px 0;font-size:14px}
+.timeline div::before{content:"";position:absolute;left:-21px;top:11px;width:11px;height:11px;border-radius:50%;background:var(--surface);border:3px solid var(--ichou)}
+.timeline .num{font-weight:600;margin-right:8px}
+.timeline .hot{font-weight:900;color:var(--neg)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 90px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:13px;z-index:30;max-width:calc(100% - 32px)}
+.mem{display:flex;gap:8px;align-items:center}
+.mem input{flex:1}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .22s ease-out}@keyframes up{from{transform:translateY(30px);opacity:.4}}}
+</style>
+<style>
+/* page reset (the Claude viewer used to supply this) */
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;-webkit-text-size-adjust:100%}
+img{max-width:100%}
+[hidden]{display:none!important}
+/* trip-password lock screen */
+.lock{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:var(--ai);padding:24px max(16px,env(safe-area-inset-left,0px)) 24px max(16px,env(safe-area-inset-right,0px))}
+.lockbox{width:min(360px,100%);background:var(--surface);color:var(--ink);border-radius:20px;padding:28px 22px;display:grid;gap:12px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.lockmark{justify-self:center;width:64px;height:64px;border-radius:16px;background:var(--ichou);color:#1a1f38;display:grid;place-items:center;font-weight:900;font-size:20px;letter-spacing:.05em}
+.lockbox h1{margin:0;font-size:20px;font-weight:900}
+.lockbox p{margin:0;color:var(--muted);font-size:13px}
+.lockbox input{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:12px 14px;font-size:18px;text-align:center}
+.lockbox button{border:0;border-radius:12px;padding:12px;font-weight:900;font-size:16px;background:var(--ai);color:var(--surface)}
+.lockbox button:disabled{opacity:.6}
+.lockmsg{min-height:1.4em;color:var(--neg)!important}
+</style>
+</head>
+<body>
+<div id="lock" class="lock" role="dialog" aria-modal="true" aria-labelledby="lockTitle">
+  <form id="lockForm" class="lockbox" autocomplete="off">
+    <div class="lockmark" aria-hidden="true">富士</div>
+    <h1 id="lockTitle">東京・富士 四人行</h1>
+    <p>輸入旅行密碼（在 LINE 群組裡）</p>
+    <input id="lockPw" type="password" inputmode="text" autocomplete="current-password" placeholder="旅行密碼" aria-label="旅行密碼">
+    <button id="lockBtn" type="submit">進入</button>
+    <p id="lockMsg" class="lockmsg" role="status"></p>
+  </form>
+</div>
+<script>
+/* Encrypted Firebase Realtime Database adapter.
+   Exposes the same small `claude.use('db')` surface the app was written against,
+   so the app logic (and its tested money engine) stays unchanged.
+   - Data lives at  <FB>/trips/<pathId>/<collection>/<id>  as {iv, ct} (AES-GCM-256).
+   - pathId and key both come from the trip password via PBKDF2; without the password
+     the data can't be found or read. */
+(() => {
+  const FB = 'https://tokyo-trip-2026-18ce0-default-rtdb.asia-southeast1.firebasedatabase.app';
+  const SALT = 'tokyo-trip-2026-v1';
+  const ITER = 150000;
+  const LS_PW = 'tokyo-trip-pw';
+  const te = new TextEncoder(), td = new TextDecoder();
+  const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+  const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+
+  async function derive(pw){
+    const base = await crypto.subtle.importKey('raw', te.encode(pw), 'PBKDF2', false, ['deriveKey', 'deriveBits']);
+    const key = await crypto.subtle.deriveKey({name:'PBKDF2', salt:te.encode(SALT + ':key'), iterations:ITER, hash:'SHA-256'}, base, {name:'AES-GCM', length:256}, false, ['encrypt', 'decrypt']);
+    const bits = new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2', salt:te.encode(SALT + ':path'), iterations:ITER, hash:'SHA-256'}, base, 256));
+    const pathId = [...bits].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 40);
+    return {key, pathId};
+  }
+  let K = null, BASE = '';
+  async function enc(obj){
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM', iv}, K, te.encode(JSON.stringify(obj))));
+    return {iv:b64(iv), ct:b64(ct)};
+  }
+  const plain = new Map();                                  // ct → decrypted object
+  async function dec(rec){
+    if (!rec || typeof rec.ct !== 'string') return undefined;
+    if (plain.has(rec.ct)) return plain.get(rec.ct);
+    try {
+      const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv:unb64(rec.iv)}, K, unb64(rec.ct));
+      const o = Object.freeze(JSON.parse(td.decode(pt))); plain.set(rec.ct, o); return o;
+    } catch { return undefined; }
+  }
+
+  /* ---- local mirror of the trip subtree, kept live by Firebase streaming ---- */
+  let tree = {}, loaded = false;
+  const subs = new Set();
+  const getAt = (path) => path.split('/').filter(Boolean).reduce((o, k) => (o && typeof o === 'object') ? o[k] : undefined, tree);
+  function setAt(path, val){
+    const ks = path.split('/').filter(Boolean);
+    if (!ks.length) { tree = (val && typeof val === 'object') ? val : {}; return; }
+    let o = tree;
+    for (let i = 0; i < ks.length - 1; i++) { if (!o[ks[i]] || typeof o[ks[i]] !== 'object') o[ks[i]] = {}; o = o[ks[i]]; }
+    if (val === null || val === undefined) delete o[ks.at(-1)]; else o[ks.at(-1)] = val;
+  }
+  let notifyQ = null;
+  function notify(){ if (notifyQ) return; notifyQ = setTimeout(() => { notifyQ = null; subs.forEach(s => s.run()); }, 0); }
+  const meta = {fromCache:false, hasPendingWrites:false};
+  async function docSnap(path){
+    const d = await dec(getAt(path));
+    return {id:path.split('/').pop(), exists:d !== undefined, data:() => d, metadata:meta};
+  }
+  async function colSnap(path){
+    const node = getAt(path) || {};
+    const docs = [];
+    for (const id of Object.keys(node)) { const d = await dec(node[id]); if (d !== undefined) docs.push({id, exists:true, data:() => d, metadata:meta}); }
+    return {docs, size:docs.length, empty:!docs.length, metadata:meta, docChanges:() => []};
+  }
+
+  function err(code, message){ const e = new Error(message || code); e.code = code; return e; }
+  async function rest(method, path, body){
+    let r;
+    try { r = await fetch(`${BASE}/${path}.json`, {method, headers:{'Content-Type':'application/json'}, body: body === undefined ? undefined : JSON.stringify(body)}); }
+    catch { throw err('unavailable', 'offline'); }
+    if (!r.ok) throw err(r.status === 401 || r.status === 403 ? 'unavailable' : 'unavailable', 'HTTP ' + r.status);
+    return r.json();
+  }
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+  function docRef(path){
+    return {
+      id: path.split('/').pop(), path,
+      async get(){ return docSnap(path); },
+      async set(data){ const e = await enc(data); await rest('PUT', path, e); setAt(path, e); notify(); },
+      async update(data){ const cur = await dec(getAt(path)); if (cur === undefined) throw err('invalid_argument', 'missing'); return this.set({...cur, ...data}); },
+      async delete(){ await rest('DELETE', path); setAt(path, null); notify(); },
+      onSnapshot(next, error){
+        const s = {run: async () => { try { next(await docSnap(path)); } catch (e) { error && error(e); } }};
+        subs.add(s); if (loaded) s.run(); return () => subs.delete(s);
+      },
+      collection(sub){ return colRef(path + '/' + sub); },
+    };
+  }
+  function colRef(path){
+    const q = {
+      path,
+      doc: id => docRef(path + '/' + (id || newId())),
+      async add(data){ const r = docRef(path + '/' + newId()); await r.set(data); return r; },
+      async get(){ return colSnap(path); },
+      onSnapshot(next, error){
+        const s = {run: async () => { try { next(await colSnap(path)); } catch (e) { error && error(e); } }};
+        subs.add(s); if (loaded) s.run(); return () => subs.delete(s);
+      },
+      where(){ return q; }, orderBy(){ return q; }, limit(){ return q; },
+    };
+    return q;
+  }
+  const db = {doc: docRef, collection: colRef};
+
+  /* ---- live updates: Firebase REST streaming, with polling as a fallback ---- */
+  function startSync(){
+    let pollTimer = null, es = null, failures = 0;
+    const poll = async () => { try { tree = (await rest('GET', '')) || {}; loaded = true; notify(); } catch {} };
+    const startPoll = () => { if (!pollTimer) { poll(); pollTimer = setInterval(poll, 8000); } };
+    const open = () => {
+      try { es = new EventSource(`${BASE}/.json`); } catch { startPoll(); return; }
+      const onData = (patch) => ev => {
+        let m; try { m = JSON.parse(ev.data); } catch { return; }
+        if (!m || typeof m.path !== 'string') return;
+        if (patch && m.data && typeof m.data === 'object') { for (const [k, v] of Object.entries(m.data)) setAt((m.path === '/' ? '' : m.path) + '/' + k, v); }
+        else setAt(m.path, m.data);
+        loaded = true; failures = 0; notify();
+      };
+      es.addEventListener('put', onData(false));
+      es.addEventListener('patch', onData(true));
+      es.addEventListener('cancel', () => { es.close(); startPoll(); });
+      es.onerror = () => { if (++failures >= 3) { es.close(); startPoll(); } };
+    };
+    open();
+    // Re-read everything when the phone comes back to the page (sleeping phones drop streams).
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') poll(); });
+    // Safety net: if streaming never delivered, poll.
+    setTimeout(() => { if (!loaded) startPoll(); }, 6000);
+  }
+
+  /* ---- unlock ---- */
+  let resolveDb; const dbReady = new Promise(r => resolveDb = r);
+  async function tryUnlock(pw){
+    const d = await derive(pw);
+    K = d.key; BASE = `${FB.replace(/\/$/, '')}/trips/${d.pathId}`;
+    let check;
+    try { check = await rest('GET', 'meta/check'); } catch { return 'offline'; }
+    if (!check) return 'wrong';
+    const ok = await dec(check);
+    return ok && ok.v === 'ok' ? 'ok' : 'wrong';
+  }
+  const lock = document.getElementById('lock'), form = document.getElementById('lockForm');
+  const msg = document.getElementById('lockMsg'), input = document.getElementById('lockPw'), btn = document.getElementById('lockBtn');
+  async function attempt(pw, silent){
+    btn.disabled = true; msg.textContent = '確認中…';
+    const r = await tryUnlock(pw);
+    btn.disabled = false;
+    if (r === 'ok') {
+      try { localStorage.setItem(LS_PW, pw); } catch {}
+      lock.hidden = true; msg.textContent = '';
+      startSync(); resolveDb(db); return true;
+    }
+    msg.textContent = r === 'offline' ? '連不上網路，確認後再試一次。' : (silent ? '' : '密碼不對，再確認一次 LINE 群組裡的密碼。');
+    if (r === 'wrong') { try { localStorage.removeItem(LS_PW); } catch {} }
+    input.focus(); return false;
+  }
+  form.addEventListener('submit', e => { e.preventDefault(); const pw = input.value.trim(); if (pw) attempt(pw, false); });
+  let saved = null; try { saved = localStorage.getItem(LS_PW); } catch {}
+  if (saved) attempt(saved, true); else setTimeout(() => input.focus(), 50);
+
+  const user = {can: async () => true, id: async () => null, isOwner: async () => false, canEdit: async () => true, me: async () => ({id:null})};
+  window.claude = {use: async name => name === 'db' ? dbReady : name === 'user' ? user : null};
+})();
+</script>
+
+
+<header>
+  <div class="wrap">
+    <div class="toprow">
+      <div><h1>東京・富士 四人行</h1><div class="dates">2026.11.22 – 11.27</div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="iconbtn" id="btnAir" type="button">✈ 機場交通</button><button class="iconbtn" id="btnMe" type="button">選我是誰</button><button class="iconbtn" id="btnSettings" type="button">成員・匯率</button></div>
+    </div>
+    <div class="route" aria-label="路線"><b>東京</b><i></i><span>11/23</span><i></i><b>河口湖</b><i></i><span>11/24</span><i></i><b>御殿場</b><i></i><b>豪德寺</b><i></i><b>東京</b><i></i><span>11/27・28 回台</span></div>
+    <nav role="tablist">
+      <button role="tab" id="tab-pre" data-tab="pre" type="button">行前</button>
+      <button role="tab" id="tab-ledger" data-tab="ledger" type="button">旅途記帳</button>
+      <button role="tab" id="tab-settle" data-tab="settle" type="button">結算</button>
+      <button role="tab" id="tab-plan" data-tab="plan" type="button">行程</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap" id="main"></main>
+<button class="fab" id="fab" type="button">＋ 記一筆</button>
+<div id="sheetHost"></div>
+
+<script>
+(() => {
+const DAYS = [
+  {id:'prep', label:'出發前', base:'待辦清單'},
+  {id:'2026-11-22', label:'11/22 日', base:'成田 → 錦糸町'},
+  {id:'2026-11-23', label:'11/23 一・勤勞感謝日', base:'包車：錦糸町 → 河口湖'},
+  {id:'2026-11-24', label:'11/24 二', base:'包車：河口湖 → 御殿場 → 豪德寺 → 錦糸町'},
+  {id:'2026-11-25', label:'11/25 三', base:'東京'},
+  {id:'2026-11-26', label:'11/26 四', base:'東京'},
+  {id:'2026-11-27', label:'11/27 五', base:'回台（第一組）'},
+  {id:'2026-11-28', label:'11/28 六', base:'回台（第二組）'},
+];
+const CATS = [
+  {id:'food', n:'餐飲', s:'食'}, {id:'transit', n:'交通', s:'交'}, {id:'stay', n:'住宿', s:'宿'},
+  {id:'ticket', n:'門票', s:'票'}, {id:'shop', n:'購物', s:'買'}, {id:'other', n:'其他', s:'他'},
+  {id:'flight', n:'機票', s:'機'},
+];
+const PHASE_CATS = { pre:['flight','stay','transit','ticket','other'], trip:['food','transit','stay','ticket','shop','other'] };
+const catsFor = ph => PHASE_CATS[ph].map(id => CATS.find(c => c.id === id));
+const phaseOf = e => e.phase === 'pre' ? 'pre' : 'trip';
+const DEFAULT_MEMBERS = [{id:'m1',name:'成員1'},{id:'m2',name:'成員2'},{id:'m3',name:'成員3'},{id:'m4',name:'成員4'}];
+
+const S = {
+  tab:'ledger', members:DEFAULT_MEMBERS, rate:0.21, fee:0.015, settingsLoaded:false,
+  expenses:[], plan:[], expLoaded:false, planLoaded:false,
+  filter:'all', readOnly:false, offline:false, slow:false,
+};
+let db = null, uid = null;
+const defaultPayer = () => memberIds().includes(S.me) ? S.me : S.members[0]?.id;
+const LS_ME = 'tokyo-trip-me';
+async function setMe(id){
+  S.me = id; try { localStorage.setItem(LS_ME, id); } catch {}
+  render();
+  if (db && uid) { try { await db.doc('data/users/' + uid + '/me').set({member:id}); } catch {} }
+}
+function maybeAskMe(){
+  if (S.meChecked && S.settingsLoaded && !memberIds().includes(S.me) && !$('.sheet')) meSheet(true);
+}
+function meSheet(first){
+  openSheet(`<h2>你是哪一位？</h2>
+    <p class="note" style="margin:0">選好之後，記帳時「誰付的」會預設是你，結算也會標出你的部分。只存在這支手機，隨時可以從右上「我是…」更改。</p>
+    <div class="chips" style="gap:10px">${S.members.map(m => `<button type="button" class="chip" style="padding:10px 18px;font-size:16px" data-me="${m.id}" aria-pressed="${m.id===S.me}">${esc(m.name)}</button>`).join('')}</div>
+    ${first ? '' : '<div class="actions"><button type="button" class="btn" data-close>取消</button></div>'}`);
+  $('.sheet').addEventListener('click', ev => { const t = ev.target.closest('[data-me]'); if (t) { closeSheet(); setMe(t.dataset.me); toast('好的，' + mname(t.dataset.me) + '！'); } });
+}
+const $ = (s, r=document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const yen = n => '¥' + Math.round(n).toLocaleString('en-US');
+// TWD shown from integer cents: whole dollars when exact, otherwise two decimals.
+const twdC = c => { const neg = c < 0; c = Math.abs(Math.round(c));
+  const s = c % 100 === 0 ? (c / 100).toLocaleString('en-US') : (c / 100).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  return (neg ? '−' : '') + 'NT$' + s; };
+const yenC = c => yen(c / 100 / S.rate);                     // approx. yen for a TWD-cents figure
+const mname = id => (S.members.find(m => m.id === id) || {name:'（已移除）'}).name;
+const memberIds = () => S.members.map(m => m.id);
+const cost = e => Money.costCents(e, S.rate);               // TWD cents incl. card fee
+const jpyOf = e => e.cur === 'JPY' ? e.amt : cost(e) / 100 / S.rate;
+const pct = f => (Math.round(f * 1000) / 10) + '%';
+// "1,234" / "NT$1,234" / "¥ 5000" → number (max 2 decimals); anything else → NaN.
+const parseAmt = s => { const t = String(s ?? '').replace(/[,\s¥円元]|NT\$|\$/g, ''); if (!/^\d+(\.\d+)?$/.test(t)) return NaN; return Math.round(parseFloat(t) * 100) / 100; };
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const defaultDate = () => { const t = todayStr(); return (t >= '2026-11-22' && t <= '2026-11-28') ? t : '2026-11-22'; };
+const wd = s => '日一二三四五六'[new Date(s + 'T12:00:00').getDay()];
+
+function toast(msg){
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2600);
+}
+function writeFailed(e){
+  if (e && (e.code === 'invalid_argument' || e.code === 'not_granted')) {
+    S.readOnly = true; render();
+    toast('沒存成功，重新整理頁面再試一次。');
+  } else if (e && e.code === 'quota_exceeded') toast('資料庫已滿，刪掉一些舊紀錄再試。');
+  else toast('沒存成功，網路恢復後再試一次。');
+}
+async function write(fn){
+  if (!db) { toast('目前連不上共用資料，確認網路後重新整理。'); return false; }
+  if (S.readOnly) { toast('你目前只能檢視。'); return false; }
+  try { await fn(); return true; } catch (e) { writeFailed(e); return false; }
+}
+
+/* MONEY-START — pure functions, unit-tested; every amount is an integer number of TWD cents */
+const Money = (() => {
+  // Overseas card fee as the bank charges it: fee% of the TWD amount, rounded half-up to whole NT$.
+  // Integer maths (cents × basis points) so a .5 case is exact, never a float artefact.
+  function feeTWD(amt, fee){
+    if (!fee || !(amt > 0)) return 0;
+    const c = Math.round(amt * 100), bp = Math.round(fee * 10000);
+    return Math.round(c * bp / 1e6);
+  }
+  // What one expense really cost, in TWD cents.
+  function costCents(e, rate){
+    if (!(e.amt > 0)) return 0;
+    if (e.cur === 'TWD') return Math.round(e.amt * 100) + 100 * feeTWD(e.amt, e.fee);
+    return Math.round(e.amt * rate * 100);
+  }
+  // Valid sharers in a stable order (member order first, then any unknown ids), no duplicates.
+  function sharers(split, order){
+    const set = [...new Set((split || []).filter(x => typeof x === 'string' && x))];
+    return order.filter(id => set.includes(id)).concat(set.filter(id => !order.includes(id)));
+  }
+  // Equal split with no lost cents: the leftover cents go one each to the first sharers.
+  function shares(cents, split, order){
+    const ids = sharers(split, order), n = ids.length;
+    if (!n) return [];
+    const base = Math.floor(cents / n); let r = cents - base * n;
+    return ids.map((id, i) => [id, base + (i < r ? 1 : 0)]);
+  }
+  // paid / owe per person in cents. sum(paid) === sum(owe) exactly.
+  function balances(expenses, order, rate){
+    const b = {}; const get = id => (b[id] ||= {paid:0, owe:0});
+    order.forEach(get);
+    for (const e of expenses) {
+      const c = costCents(e, rate); const sh = shares(c, e.split, order);
+      if (!c || !sh.length || !e.payer) continue;
+      get(e.payer).paid += c;
+      for (const [id, s] of sh) get(id).owe += s;
+    }
+    return b;
+  }
+  // Net cents → whole dollars that still sum to exactly zero (largest-remainder rounding).
+  function roundNets(b, order){
+    const ids = Object.keys(b).sort((x, y) => (order.indexOf(x) + 1 || 1e9) - (order.indexOf(y) + 1 || 1e9));
+    const rows = ids.map(id => { const c = b[id].paid - b[id].owe; const d = Math.floor(c / 100); return {id, d, rem: c - d * 100}; });
+    let k = Math.round(rows.reduce((s, r) => s + r.rem, 0) / 100);   // dollars still to hand out
+    [...rows].sort((x, y) => y.rem - x.rem || ids.indexOf(x.id) - ids.indexOf(y.id)).forEach(r => { if (k > 0 && r.rem > 0) { r.d += 1; k--; } });
+    return Object.fromEntries(rows.map(r => [r.id, r.d]));
+  }
+  // Fewest transfers (greedy, at most n−1) on whole dollars. Settles every net to exactly 0.
+  function transfers(nets, order){
+    const pos = id => order.indexOf(id) + 1 || 1e9;
+    const cred = [], debt = [];
+    for (const [id, v] of Object.entries(nets)) { if (v > 0) cred.push({id, v}); else if (v < 0) debt.push({id, v:-v}); }
+    const by = (a, b) => b.v - a.v || pos(a.id) - pos(b.id);
+    cred.sort(by); debt.sort(by);
+    const out = []; let i = 0, j = 0;
+    while (i < debt.length && j < cred.length) {
+      const v = Math.min(debt[i].v, cred[j].v);
+      out.push({from:debt[i].id, to:cred[j].id, v});
+      debt[i].v -= v; cred[j].v -= v;
+      if (debt[i].v === 0) i++; if (cred[j].v === 0) j++;
+    }
+    return out;
+  }
+  return {feeTWD, costCents, sharers, shares, balances, roundNets, transfers};
+})();
+/* MONEY-END */
+const balances = (list = S.expenses) => Money.balances(list, memberIds(), S.rate);
+
+/* ---------- render ---------- */
+function render(){
+  const bm = $('#btnMe'); if (bm) bm.textContent = memberIds().includes(S.me) ? '我是 ' + mname(S.me) : '選我是誰';
+  document.querySelectorAll('nav button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === S.tab)));
+  $('#fab').hidden = S.tab === 'plan' || S.tab === 'settle' || S.readOnly;
+  $('#fab').textContent = S.tab === 'pre' ? '＋ 記行前費用' : '＋ 記一筆';
+  const main = $('#main');
+  let html = '';
+  if (!db && S.dbChecked) html += `<div class="banner">連不上共用資料。確認手機有網路後重新整理頁面。</div>`;
+  else if (S.readOnly) html += `<div class="banner">目前沒辦法存檔，重新整理頁面再試一次。</div>`;
+  else if (S.slow && !(S.expLoaded && S.planLoaded)) html += `<div class="banner">資料還沒載入，網路可能不穩。畫面上的內容可能不是最新的。</div>`;
+  if (S.tab === 'ledger') html += renderLedger('trip');
+  else if (S.tab === 'pre') html += renderLedger('pre');
+  else if (S.tab === 'settle') html += renderSettle();
+  else html += renderPlan();
+  main.innerHTML = html;
+}
+
+function renderLedger(phase){
+  const pre = phase === 'pre';
+  const cats = catsFor(phase);
+  if (S.filter !== 'all' && !cats.some(c => c.id === S.filter)) S.filter = 'all';
+  const all = S.expenses.filter(e => phaseOf(e) === phase);
+  const list = all.filter(e => S.filter === 'all' || e.cat === S.filter);
+  const totalC = all.reduce((s,e) => s + cost(e), 0);
+  const totalY = all.reduce((s,e) => s + jpyOf(e), 0);
+  const b = balances(all);
+  const meOwe = S.me && b[S.me] ? b[S.me].owe : null;
+  // 行前 is mostly paid in TWD, so lead with TWD there; on the trip lead with yen.
+  let h = `${pre ? `<p class="note" style="margin:0 4px 12px">出發前就付掉的機票、飯店等費用記在這裡，會和旅途中的帳一起結算。</p>` : ''}
+  <section class="card sum">
+    <div><div class="lbl">${pre ? '行前總額' : '旅途總支出'}</div>
+      <div class="big num">${pre ? twdC(totalC) : yen(totalY)}</div><div class="sub num">${pre ? '≈ ' + yen(totalY) : '= ' + twdC(totalC)}</div></div>
+    <div><div class="lbl">${meOwe !== null ? '我分攤的' : '平均每人'}</div>
+      ${meOwe !== null
+        ? `<div class="big num">${pre ? twdC(meOwe) : yenC(meOwe)}</div><div class="sub num">${pre ? '≈ ' + yenC(meOwe) : '= ' + twdC(meOwe)}</div>`
+        : `<div class="big num">${pre ? twdC(totalC / Math.max(1,S.members.length)) : yen(totalY / Math.max(1,S.members.length))}</div><div class="sub">選了自己的名字後顯示你的部分</div>`}</div>
+  </section>
+  <div class="people" aria-label="每人分攤後的花費">${S.members.map(m => `<span class="pchip"${m.id===S.me?' style="border-color:var(--ai)"':''}>${esc(m.name)}${m.id===S.me?'（我）':''} <span class="num">${pre ? twdC(b[m.id]?.owe||0) : yenC(b[m.id]?.owe||0)}</span></span>`).join('')}</div>
+  <div class="filters" role="group" aria-label="分類篩選">
+    <button class="chip" data-filter="all" aria-pressed="${S.filter==='all'}" type="button">全部</button>
+    ${cats.map(c => `<button class="chip" data-filter="${c.id}" aria-pressed="${S.filter===c.id}" type="button">${c.n}</button>`).join('')}
+  </div>`;
+  if (!S.expLoaded && db) return h + `<div class="empty">載入帳目中…</div>`;
+  if (!list.length) return h + `<div class="empty"><b>${S.filter!=='all' ? '這個分類還沒有帳' : pre ? '還沒有行前費用' : '還沒有任何帳'}</b>${pre ? '按右下「＋ 記行前費用」，例如誰刷了四個人的機票、誰先付了飯店訂金。' : '按右下「＋ 記一筆」，填金額、誰付的、分給誰，四個人的手機會同步看到。'}</div>`;
+  const byDay = {};
+  for (const e of list) (byDay[e.date] ||= []).push(e);
+  for (const d of Object.keys(byDay).sort().reverse()) {
+    const rows = byDay[d].sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+    const dayC = rows.reduce((s,e) => s + cost(e), 0), dayY = rows.reduce((s,e) => s + jpyOf(e), 0);
+    const dlabel = pre ? d.replace(/^(\d+)-(\d+)-(\d+)$/, (_, y, m, dd) => `${+m}/${+dd}`) : d.slice(5).replace('-','/');
+    h += `<section class="day"><div class="dayhead"><h2>${dlabel}<small>週${wd(d)}${pre ? '・付款日' : ''}</small></h2><span class="num">${pre ? twdC(dayC) : yen(dayY)}</span></div>`;
+    for (const e of rows) {
+      const c = CATS.find(x => x.id === e.cat) || CATS[5];
+      const split = Money.sharers(e.split, memberIds());
+      const all = S.members.length && S.members.every(m => split.includes(m.id)) && split.length === S.members.length;
+      const who = all ? '全員分' : split.length === 1 && split[0] === e.payer ? '自己的' : split.map(mname).join('、') + ' 分';
+      const fee = e.cur === 'TWD' ? Money.feeTWD(e.amt, e.fee) : 0;
+      const sub = e.cur === 'TWD'
+        ? (fee ? `${twdC(Math.round(e.amt*100))} + 手續費 NT$${fee}` : '≈ ' + yenC(cost(e)))
+        : '= ' + twdC(cost(e));
+      h += `<button class="row" data-exp="${esc(e.id)}" type="button">
+        <span class="cat" aria-hidden="true">${c.s}</span>
+        <span style="min-width:0"><div class="t">${esc(e.title || c.n)}</div><div class="m">${esc(mname(e.payer))} 付・${esc(who)}</div></span>
+        <span class="a"><div class="num">${e.cur==='TWD' ? twdC(cost(e)) : yen(e.amt)}</div><div class="m num">${sub}</div></span>
+      </button>`;
+    }
+    h += `</section>`;
+  }
+  return h;
+}
+
+function renderSettle(){
+  const ids = memberIds();
+  const b = balances();
+  const nets = Money.roundNets(b, ids);                       // whole NT$, sums to exactly 0
+  const rowsIds = Object.keys(b).sort((x, y) => (ids.indexOf(x) + 1 || 1e9) - (ids.indexOf(y) + 1 || 1e9));
+  const max = Math.max(1, ...rowsIds.map(id => Math.abs(nets[id])));
+  const preC = S.expenses.filter(e => phaseOf(e) === 'pre').reduce((s,e) => s + cost(e), 0);
+  const tripC = S.expenses.filter(e => phaseOf(e) === 'trip').reduce((s,e) => s + cost(e), 0);
+  const paidSum = rowsIds.reduce((s,id) => s + b[id].paid, 0), oweSum = rowsIds.reduce((s,id) => s + b[id].owe, 0);
+  const netSum = rowsIds.reduce((s,id) => s + nets[id], 0);
+  const ok = paidSum === preC + tripC && oweSum === paidSum && netSum === 0;
+  let h = `<section class="card sum" style="margin-top:4px">
+    <div><div class="lbl">行前費用</div><div class="big num">${twdC(preC)}</div><div class="sub num">≈ ${yenC(preC)}</div></div>
+    <div><div class="lbl">旅途花費</div><div class="big num">${twdC(tripC)}</div><div class="sub num">≈ ${yenC(tripC)}</div></div>
+  </section>
+  <p class="note">兩部分合在一起算，結清一次就好。整趟總額 <b class="num">${twdC(preC + tripC)}</b>。</p>
+  <h3>每人收支（整趟）</h3><section class="card">`;
+  for (const id of rowsIds) {
+    const n = nets[id], w = Math.abs(n) / max * 50, me = id === S.me;
+    h += `<div class="bal">
+      <div><b>${esc(mname(id))}${me ? '（我）' : ''}</b><div class="sub num">先付 ${twdC(b[id].paid)}・應分攤 ${twdC(b[id].owe)}</div></div>
+      <div class="num ${n>0?'pos':n<0?'neg':''}" style="text-align:right;font-weight:600">${n>0?'應收 ':n<0?'應付 ':'打平 '}${n ? twdC(Math.abs(n)*100) : ''}</div>
+      <div class="bar"><i style="background:var(${n>=0?'--pos':'--neg'});${n>=0?`left:50%;width:${w}%`:`right:50%;width:${w}%`}"></i></div>
+    </div>`;
+  }
+  h += `</section><h3>最少轉帳次數</h3>`;
+  const t = Money.transfers(nets, ids);
+  if (!t.length) h += `<section class="card"><div class="empty"><b>目前大家打平</b>有人先付了共同費用之後，這裡會算出誰該轉給誰。</div></section>`;
+  else {
+    h += `<section class="card">` + t.map(x => `<div class="xfer"${x.from===S.me||x.to===S.me?' style="background:var(--ai-soft)"':''}><b>${esc(mname(x.from))}</b><span class="arrow">轉給 →</span><b>${esc(mname(x.to))}</b>
+      <span class="amt"><div class="num" style="font-weight:600">${twdC(x.v*100)}</div></span></div>`).join('') + `</section>`;
+  }
+  h += `<p class="note">${ok ? '✓ 已核對：每人先付合計 = 每人分攤合計 = 整趟總額，應收應付相加為 0。' : '⚠ 核對不平，請截圖傳到群組。'}<br>
+    計算規則：全部換成台幣到「分」再算；平均分不盡的零頭（1 分錢）依成員順序分給前面的人；最後每人應收應付四捨五入到元，並保證加總為 0。
+    日圓用匯率 1 円 = ${S.rate} 台幣換算；台幣刷卡簡訊金額加 ${pct(S.fee)} 海外手續費（四捨五入到元，和銀行帳單一樣）。</p>`;
+  return h;
+}
+
+function renderPlan(){
+  let h = `<button class="airbtn" type="button" data-air="in"><span style="display:grid;gap:2px"><b>✈ 成田機場 ⇄ 錦糸町相鐵</b><span>去程、回程怎麼搭車，幾點出發</span></span><i>→</i></button>`;
+  h += `<div class="legend"><span><span class="tag fixed">確定</span>已訂或已決定</span><span><span class="tag idea">建議</span>還在討論，點開可改成確定</span></div>`;
+  if (!S.planLoaded && db) return h + `<div class="empty">載入行程中…</div>`;
+  for (const d of DAYS) {
+    const items = S.plan.filter(p => p.day === d.id).sort((a,b) => (a.time||'99').localeCompare(b.time||'99') || (a.createdAt||0) - (b.createdAt||0));
+    h += `<section class="card pday"><div class="phead"><h2>${esc(d.label)}</h2><span class="base">${esc(d.base)}</span></div>`;
+    for (const p of items) {
+      const tag = d.id === 'prep' ? (p.done ? '<span class="tag done">完成</span>' : '') : `<span class="tag ${p.kind==='fixed'?'fixed':'idea'}">${p.kind==='fixed'?'確定':'建議'}</span>`;
+      h += `<button class="item ${p.kind==='idea' && d.id!=='prep' ? 'idea':''}" data-plan="${esc(p.id)}" type="button">
+        <span class="time">${esc(p.time || (d.id==='prep' ? (p.done?'✓':'□') : '—'))}</span>
+        <span class="txt">${tag}<b>${esc(p.text)}</b>${p.note ? `<p>${esc(p.note)}</p>` : ''}</span></button>`;
+    }
+    if (!items.length) h += `<div class="item"><span class="time">—</span><span class="txt" style="color:var(--muted)">還沒有安排</span></div>`;
+    if (!S.readOnly) h += `<button class="additem" data-addplan="${d.id}" type="button">＋ 加一項</button>`;
+    h += `</section>`;
+  }
+  return h;
+}
+
+/* ---------- sheets ---------- */
+function closeSheet(){ $('#sheetHost').innerHTML = ''; }
+function openSheet(inner){
+  $('#sheetHost').innerHTML = `<div class="scrim" data-close></div><div class="sheet" role="dialog" aria-modal="true"><div class="wrap">${inner}</div></div>`;
+}
+
+function expenseSheet(e, phase){
+  const isNew = !e;
+  const ph = e ? phaseOf(e) : (phase || 'trip');
+  const pre = ph === 'pre';
+  const st = e ? {...e, fee:e.fee||0, split:[...(e.split||[])]}
+    : pre ? {date:todayStr(), title:'', amt:'', cur:'TWD', fee:0, cat:'flight', payer:defaultPayer(), split:S.members.map(m=>m.id)}
+          : {date:defaultDate(), title:'', amt:'', cur:'JPY', fee:0, cat:'food', payer:defaultPayer(), split:S.members.map(m=>m.id)};
+  const draw = () => {
+    openSheet(`<h2>${isNew ? (pre ? '記行前費用' : '記一筆') : '修改這筆'}</h2>
+      <div class="field"><label for="f-amt">金額</label>
+        <div class="amtrow"><input id="f-amt" inputmode="decimal" placeholder="0" value="${esc(st.amt)}" autocomplete="off">
+        <div class="seg" role="group" aria-label="幣別"><button type="button" data-cur="JPY" aria-pressed="${st.cur==='JPY'}">円</button><button type="button" data-cur="TWD" aria-pressed="${st.cur==='TWD'}">台幣</button></div></div>
+        ${st.cur === 'TWD' ? `<div class="chips" role="group" aria-label="刷卡手續費">
+          <button type="button" class="chip" data-fee="0" aria-pressed="${!st.fee}">金額已是最終</button>
+          <button type="button" class="chip" data-fee="1" aria-pressed="${!!st.fee}">刷卡簡訊金額，加 ${pct(st.fee || S.fee)} 手續費</button></div>` : ''}
+        <div class="preview num" id="f-prev"></div></div>
+      <div class="field"><label for="f-title">項目</label><input id="f-title" type="text" placeholder="${pre ? '例：長榮來回機票 ×4、東京飯店 5 晚' : '例：一蘭拉麵、河口湖周遊巴士'}" value="${esc(st.title)}"></div>
+      <div class="field"><span class="lbl">分類</span><div class="chips">${catsFor(ph).map(c => `<button type="button" class="chip" data-cat="${c.id}" aria-pressed="${st.cat===c.id}">${c.n}</button>`).join('')}</div></div>
+      <div class="field"><span class="lbl">誰付的</span><div class="chips">${S.members.map(m => `<button type="button" class="chip" data-payer="${m.id}" aria-pressed="${st.payer===m.id}">${esc(m.name)}</button>`).join('')}</div></div>
+      <div class="field"><span class="lbl">分給誰（平均分）</span><div class="chips">
+        <button type="button" class="chip" data-splitall aria-pressed="false">全員</button>
+        ${S.members.map(m => `<button type="button" class="chip" data-split="${m.id}" aria-pressed="${st.split.includes(m.id)}">${esc(m.name)}</button>`).join('')}</div></div>
+      <div class="field"><label for="f-date">${pre ? '付款日期' : '日期'}</label><input id="f-date" type="date" min="${pre ? '2025-01-01' : '2026-11-15'}" max="2026-12-05" value="${esc(st.date)}"></div>
+      <div class="actions">
+        ${isNew ? '' : `<button type="button" class="btn danger" id="f-del">刪除</button>`}
+        <button type="button" class="btn" data-close>取消</button>
+        <button type="button" class="btn primary" id="f-save">${isNew ? '記下來' : '儲存'}</button>
+      </div>`);
+    const prev = () => {
+      const v = parseAmt($('#f-amt').value);
+      if (!(v > 0)) { $('#f-prev').textContent = $('#f-amt').value.trim() ? '金額格式不對，只填數字' : ''; return; }
+      const ex = {amt:v, cur:st.cur, fee: st.cur === 'TWD' ? st.fee : 0};
+      const c = Money.costCents(ex, S.rate), fee = st.cur === 'TWD' ? Money.feeTWD(v, ex.fee) : 0;
+      const sh = Money.shares(c, st.split, memberIds()).map(x => x[1]);
+      const head = st.cur === 'TWD' ? (fee ? `${twdC(Math.round(v*100))} + 手續費 NT$${fee} = ${twdC(c)}` : `${twdC(c)} ≈ ${yenC(c)}`) : `= ${twdC(c)}`;
+      const per = !sh.length ? '' : Math.min(...sh) === Math.max(...sh) ? `每人 ${twdC(sh[0])}` : `每人 ${twdC(Math.min(...sh))}～${twdC(Math.max(...sh))}（零頭 1 分錢）`;
+      $('#f-prev').textContent = `${head}${per ? '・' + per : ''}`;
+    };
+    prev();
+    $('#f-amt').addEventListener('input', e => { st.amt = e.target.value; prev(); });
+    $('#f-title').addEventListener('input', e => st.title = e.target.value);
+    $('#f-date').addEventListener('input', e => st.date = e.target.value);
+    $('.sheet').addEventListener('click', async ev => {
+      const t = ev.target.closest('button'); if (!t) return;
+      if (t.dataset.cur) {
+        st.cur = t.dataset.cur;
+        // On the trip a TWD amount usually comes from the card SMS, which leaves out the overseas fee.
+        st.fee = st.cur === 'TWD' && !pre ? S.fee : 0;
+        draw();
+      }
+      else if (t.dataset.fee) { st.fee = t.dataset.fee === '1' ? (st.fee || S.fee) : 0; draw(); }
+      else if (t.dataset.cat) { st.cat = t.dataset.cat; draw(); }
+      else if (t.dataset.payer) { st.payer = t.dataset.payer; draw(); }
+      else if ('splitall' in t.dataset) { st.split = S.members.map(m=>m.id); draw(); }
+      else if (t.dataset.split) { const id = t.dataset.split; st.split = st.split.includes(id) ? st.split.filter(x=>x!==id) : [...st.split, id]; draw(); }
+      else if (t.id === 'f-del') {
+        if (t.dataset.armed) { t.disabled = true; if (await write(() => db.doc('expenses/' + e.id).delete())) { closeSheet(); toast('已刪除'); } else t.disabled = false; }
+        else { t.dataset.armed = '1'; t.textContent = '再按一次確定刪除'; }
+      }
+      else if (t.id === 'f-save') {
+        const amt = parseAmt(st.amt);
+        if (!(amt > 0)) { toast('請輸入正確的金額（只填數字）'); $('#f-amt').focus(); return; }
+        if (!memberIds().includes(st.payer)) { toast('請選誰付的'); return; }
+        st.split = Money.sharers(st.split, memberIds()).filter(id => memberIds().includes(id));
+        if (!st.split.length) { toast('至少選一個人分攤'); return; }
+        if (!st.date) { toast('請選日期'); return; }
+        const body = {date:st.date, title:st.title.trim(), amt, cur:st.cur, fee: st.cur === 'TWD' ? st.fee : 0, phase:ph, cat:st.cat, payer:st.payer, split:st.split, createdAt: e?.createdAt || Date.now()};
+        t.disabled = true;
+        const ok = await write(() => isNew ? db.collection('expenses').add(body) : db.doc('expenses/' + e.id).set(body));
+        if (ok) { closeSheet(); toast(isNew ? '記好了' : '已更新'); } else t.disabled = false;
+      }
+    });
+  };
+  draw();
+  if (isNew) setTimeout(() => $('#f-amt')?.focus(), 50);
+}
+
+function planSheet(p, day){
+  const isNew = !p; const d = p ? p.day : day; const prep = d === 'prep';
+  const st = p ? {...p} : {day:d, time:'', text:'', note:'', kind: prep ? 'todo' : 'fixed', done:false};
+  const dl = DAYS.find(x => x.id === d)?.label || d;
+  openSheet(`<h2>${esc(dl)}・${isNew ? '加一項' : '修改'}</h2>
+    ${prep ? '' : `<div class="field"><label for="p-time">時間（可空白）</label><input id="p-time" type="time" value="${esc(st.time)}"></div>`}
+    <div class="field"><label for="p-text">${prep ? '要做的事' : '行程'}</label><input id="p-text" type="text" value="${esc(st.text)}" placeholder="${prep ? '例：買富士回遊指定席' : '例：新宿搭富士回遊到河口湖'}"></div>
+    <div class="field"><label for="p-note">備註</label><textarea id="p-note" placeholder="交通方式、預約編號、地址…">${esc(st.note)}</textarea></div>
+    <div class="field"><span class="lbl">狀態</span><div class="chips">${prep
+      ? `<button type="button" class="chip" data-kind="todo" aria-pressed="${!st.done}">還沒做</button><button type="button" class="chip" data-kind="done" aria-pressed="${!!st.done}">完成</button>`
+      : `<button type="button" class="chip" data-kind="fixed" aria-pressed="${st.kind==='fixed'}">確定</button><button type="button" class="chip" data-kind="idea" aria-pressed="${st.kind==='idea'}">建議</button>`}</div></div>
+    <div class="actions">${isNew ? '' : `<button type="button" class="btn danger" id="p-del">刪除</button>`}<button type="button" class="btn" data-close>取消</button><button type="button" class="btn primary" id="p-save">儲存</button></div>`);
+  $('.sheet').addEventListener('click', async ev => {
+    const t = ev.target.closest('button'); if (!t) return;
+    if (t.dataset.kind) {
+      if (prep) st.done = t.dataset.kind === 'done'; else st.kind = t.dataset.kind;
+      t.parentElement.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === t)));
+    } else if (t.id === 'p-del') {
+      if (t.dataset.armed) { t.disabled = true; if (await write(() => db.doc('plan/' + p.id).delete())) closeSheet(); else t.disabled = false; }
+      else { t.dataset.armed = '1'; t.textContent = '再按一次確定刪除'; }
+    } else if (t.id === 'p-save') {
+      const text = $('#p-text').value.trim(); if (!text) { toast('請填寫內容'); return; }
+      const body = {day:d, time: prep ? '' : ($('#p-time')?.value || ''), text, note:$('#p-note').value.trim(), kind:st.kind, done:!!st.done, createdAt: p?.createdAt || Date.now()};
+      t.disabled = true;
+      const ok = await write(() => isNew ? db.collection('plan').add(body) : db.doc('plan/' + p.id).set(body));
+      if (ok) closeSheet(); else t.disabled = false;
+    }
+  });
+}
+
+function settingsSheet(){
+  const mem = S.members.map(m => ({...m}));
+  const used = new Set(S.expenses.flatMap(e => [e.payer, ...(e.split||[])]));
+  const draw = () => {
+    openSheet(`<h2>成員・匯率</h2>
+      <div class="field"><span class="lbl">同行成員（改名不影響已記的帳）</span>
+        ${mem.map((m,i) => `<div class="mem"><input type="text" id="mem-${m.id}" data-i="${i}" value="${esc(m.name)}" aria-label="成員名稱">${used.has(m.id) || mem.length<=2 ? '' : `<button type="button" class="btn" data-rm="${i}">移除</button>`}</div>`).join('')}
+        ${mem.length < 8 ? `<button type="button" class="btn" id="s-add">＋ 加成員</button>` : ''}</div>
+      <div class="field"><label for="s-rate">匯率：1 日圓 = ? 台幣</label><input id="s-rate" type="number" step="0.0001" min="0.05" max="1" value="${S.rate}"></div>
+      <p class="note" style="margin:0">建議用你們實際換匯或刷卡的匯率。改了之後所有台幣換算會一起更新。</p>
+      <div class="field"><label for="s-fee">海外刷卡手續費（%）</label><input id="s-fee" type="number" step="0.1" min="0" max="5" value="${Math.round(S.fee*1000)/10}"></div>
+      <p class="note" style="margin:0">之後新記的「刷卡簡訊金額」會用這個比例；已經記好的帳不會變。</p>
+      <div class="actions"><button type="button" class="btn" data-close>取消</button><button type="button" class="btn primary" id="s-save">儲存</button></div>`);
+    $('.sheet').querySelectorAll('.mem input').forEach(inp => inp.addEventListener('input', e => mem[+e.target.dataset.i].name = e.target.value));
+    $('.sheet').addEventListener('click', async ev => {
+      const t = ev.target.closest('button'); if (!t) return;
+      if (t.dataset.rm) { mem.splice(+t.dataset.rm, 1); draw(); }
+      else if (t.id === 's-add') { let n = 1; while (mem.some(m => m.id === 'm'+n) || S.members.some(m => m.id === 'm'+n)) n++; mem.push({id:'m'+n, name:'新成員'}); draw(); }
+      else if (t.id === 's-save') {
+        const rate = parseFloat($('#s-rate').value);
+        if (!(rate > 0.05 && rate < 1)) { toast('匯率看起來不對，台幣兌日圓大約 0.2 左右'); return; }
+        const feePct = parseFloat($('#s-fee').value);
+        if (!(feePct >= 0 && feePct <= 5)) { toast('手續費請填 0 到 5 之間，例如 1.5'); return; }
+        const fee = Math.round(feePct * 10) / 1000;
+        const members = mem.map(m => ({id:m.id, name:m.name.trim() || '未命名'}));
+        t.disabled = true;
+        if (await write(() => db.doc('trip/settings').set({members, rate, fee}))) { closeSheet(); toast('已儲存'); } else t.disabled = false;
+      }
+    });
+  };
+  draw();
+}
+
+
+/* ---------- airport ⇄ hotel guide (static) ---------- */
+const HOTEL_Q = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('相鉄フレッサイン 東京錦糸町');
+const NRT_Q = 'https://www.google.com/maps/dir/?api=1&travelmode=transit&origin=' + encodeURIComponent('相鉄フレッサイン 東京錦糸町') + '&destination=' + encodeURIComponent('成田空港 第2ターミナル');
+const IN_Q = 'https://www.google.com/maps/dir/?api=1&travelmode=transit&origin=' + encodeURIComponent('成田空港 第2ターミナル') + '&destination=' + encodeURIComponent('相鉄フレッサイン 東京錦糸町');
+function airSheet(which){
+  const seg = `<div class="seg" role="group" aria-label="去程或回程" style="align-self:start">
+    <button type="button" data-airtab="in" aria-pressed="${which==='in'}" style="padding:8px 16px">去程 成田→飯店</button>
+    <button type="button" data-airtab="out" aria-pressed="${which==='out'}" style="padding:8px 16px">回程 飯店→成田</button></div>`;
+  const fl = (S.flights && S.flights[which]) || [];
+  const cards = fl.length ? fl.map(f => `<div class="flight"><span class="fn">${esc(f.fn)}</span><span class="who">${esc(f.who)}</span>
+      <span class="tm">${esc(f.tm)}</span>${f.eta ? `<span class="eta">${esc(f.eta)}</span>` : ''}</div>`).join('') : '<p class="note" style="margin:0">航班資料載入中…</p>';
+  const inner = which === 'in' ? `
+    ${cards}
+    <p class="note" style="margin:0">預估＝落地後入境、領行李約 45～75 分，再加車程約 80～90 分和走路。航班時間是第三方資料，出發前用星宇 App 再確認。</p>
+
+    <section class="route-card"><h3>A. 京成アクセス特急 → 押上 → 半藏門線<small>約 75～85 分・約 ¥1,500・轉 1 次</small></h3>
+    <ol>
+      <li>入境領完行李，跟著「Railways／鉄道」指標下到 B1 的「空港第2ビル」站。</li>
+      <li>走<b>京成線</b>的閘門（不是 JR），用 Suica 直接刷卡進站。</li>
+      <li>搭<b>「アクセス特急」</b>，月台螢幕的終點或經由要有<b>押上</b>（常見寫「羽田空港」「西馬込」方向）。<b>不要搭 Skyliner</b>（要另外買票，而且不到押上）。約 60 分。</li>
+      <li><b>押上</b>下車，跟著紫色<b>「半蔵門線」</b>指標換車，往「渋谷・中央林間」方向坐 <b>1 站</b>到<b>錦糸町</b>。</li>
+      <li>出站往南側，走約 3～4 分到飯店（墨田區江東橋 1-10-8）。</li>
+    </ol>
+    <p>京成アクセス特急大約每 20～40 分一班，車上不擠、有放行李的空間。</p></section>
+
+    <section class="route-card"><h3>B. JR 快速（總武線快速）<small>約 80～90 分・約 ¥1,300・可能不用轉</small></h3>
+    <ol>
+      <li>到 B1 的 <b>JR</b>「空港第2ビル」站，用 Suica 進站。</li>
+      <li>搭往「東京・横須賀線方面」的<b>快速</b>。約每小時有一班直達錦糸町；其他班次在<b>千葉</b>換「総武線快速」往東京方向。</li>
+      <li><b>錦糸町</b>下車（地下月台），從<b>南口</b>出站，走約 3～4 分到飯店。</li>
+    </ol>
+    <p>最便宜，但比較慢。不要搭成田特快 N'EX，通常不停錦糸町。</p></section>
+
+    <section class="route-card"><h3>C. 計程車／包車接機<small>約 70～90 分・約 ¥20,000～30,000（整台）</small></h3>
+    <ol><li>晚上落地、人多又有大行李，累的話最省事。三人分約每人 ¥7,000～10,000。</li>
+    <li>可以問 11/23 那家包車公司報價，或在機場計程車櫃台排定額計程車。</li></ol></section>
+
+    <p class="note" style="margin:0"><b>建議：</b>下午到、一個人的，選 A 最順。晚上到的三個人 A 也可以（晚上往東京方向車廂很空）；太累就選 C。</p>
+    <p style="margin:0;display:flex;gap:10px;flex-wrap:wrap"><a class="btn" href="${IN_Q}" target="_blank" rel="noopener">用 Google Maps 查即時班次</a><a class="btn" href="${HOTEL_Q}" target="_blank" rel="noopener">飯店地圖</a></p>
+  ` : `
+    ${cards}
+
+    <h3 style="margin:6px 0 0">幾點要出發（往回推）</h3>
+    <div class="timeline">
+      <div><span class="num">20:40</span>起飛</div>
+      <div><span class="num">約 19:40</span>報到櫃台關閉（以星宇規定為準，通常起飛前 60 分）</div>
+      <div><span class="num">18:00～18:30</span>建議抵達第 2 航廈（報到、退稅、安檢排隊）</div>
+      <div><span class="num hot">16:30</span><b>建議從飯店出發</b></div>
+      <div><span class="num hot">17:00</span><b>最晚出發</b>，再晚遇到電車延誤就危險</div>
+    </div>
+    <p class="note" style="margin:0">11/27 是週五傍晚，往千葉方向電車會開始擠，拖大行李提早出發比較舒服。退房後可以把行李寄放在飯店櫃台，出發前再回來拿。</p>
+
+    <section class="route-card"><h3>A. 京成：半藏門線 → 押上 → アクセス特急<small>約 75～85 分・約 ¥1,500・轉 1 次</small></h3>
+    <ol>
+      <li>飯店走到<b>錦糸町</b>站，搭東京 Metro <b>半蔵門線</b>（紫色）往「押上」方向坐 <b>1 站</b>。</li>
+      <li><b>押上</b>下車，跟著<b>「京成線」</b>指標換車。</li>
+      <li>搭<b>「アクセス特急」成田空港</b>行（經成田スカイアクセス線），約 60 分。</li>
+      <li>在<b>「空港第2ビル」</b>下車＝第 2 航廈，搭電扶梯上樓到出境大廳。<b>不要坐到終點「成田空港」</b>（那是第 1 航廈）。</li>
+    </ol></section>
+
+    <section class="route-card"><h3>B. JR 快速：錦糸町直接坐<small>約 80～90 分・約 ¥1,300・可能不用轉</small></h3>
+    <ol>
+      <li>到 JR <b>錦糸町</b>站地下的<b>「総武線快速」</b>月台，往千葉方向。</li>
+      <li>搭終點是<b>「成田空港」</b>的快速（約每小時一班直達）；沒有的話先坐快速到<b>千葉</b>再換往成田空港的車。</li>
+      <li>在<b>「空港第2ビル」</b>下車＝第 2 航廈。</li>
+    </ol>
+    <p>不用換車那班最輕鬆。要看好終點站，很多快速只開到千葉或更遠的其他地方。</p></section>
+
+    <p style="margin:0;display:flex;gap:10px;flex-wrap:wrap"><a class="btn" href="${NRT_Q}" target="_blank" rel="noopener">用 Google Maps 查即時班次</a></p>
+  `;
+  openSheet(`<h2>成田機場 ⇄ 錦糸町相鐵</h2>${seg}${inner}<div class="actions"><button type="button" class="btn primary" data-close>關閉</button></div>`);
+  $('.sheet').addEventListener('click', ev => { const b = ev.target.closest('[data-airtab]'); if (b) { airSheet(b.dataset.airtab); $('.sheet')?.scrollTo(0, 0); } });
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', ev => {
+  const t = ev.target.closest('[data-tab],[data-filter],[data-exp],[data-plan],[data-addplan],[data-close],#fab,#btnSettings,#btnMe,#btnAir,[data-air]');
+  if (!t) return;
+  if (t.dataset.tab) { S.tab = t.dataset.tab; try { history.replaceState(null, '', '#' + S.tab); } catch {} render(); window.scrollTo(0,0); }
+  else if (t.dataset.filter) { S.filter = t.dataset.filter; render(); }
+  else if (t.dataset.exp) { const e = S.expenses.find(x => x.id === t.dataset.exp); if (e) { if (S.readOnly) return; expenseSheet(e); } }
+  else if (t.dataset.plan) { const p = S.plan.find(x => x.id === t.dataset.plan); if (p && !S.readOnly) planSheet(p); }
+  else if (t.dataset.addplan) planSheet(null, t.dataset.addplan);
+  else if ('close' in t.dataset) closeSheet();
+  else if (t.id === 'fab') { if (!S.readOnly) expenseSheet(null, S.tab === 'pre' ? 'pre' : 'trip'); }
+  else if (t.id === 'btnMe') meSheet(false);
+  else if (t.id === 'btnAir') airSheet('in');
+  else if (t.dataset.air) airSheet(t.dataset.air);
+  else if (t.id === 'btnSettings') { if (S.readOnly) { toast('你目前只能檢視。'); return; } settingsSheet(); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+function fromHash(){ const h = location.hash.slice(1); if (['pre','ledger','settle','plan'].includes(h)) S.tab = h; }
+if (todayStr() < '2026-11-22') S.tab = 'pre';
+window.addEventListener('hashchange', () => { fromHash(); render(); });
+fromHash();
+render();
+
+/* ---------- data ---------- */
+(async () => {
+  try { db = await window.claude?.use?.('db'); } catch { db = null; }
+  S.dbChecked = true;
+  try { S.me = localStorage.getItem(LS_ME) || null; } catch {}
+  if (!db) { S.expLoaded = S.planLoaded = S.settingsLoaded = S.meChecked = true; render(); maybeAskMe(); return; }
+  try {
+    const user = await window.claude.use('user');
+    if (user) {
+      const c = await user.can('data.write'); if (c === false) S.readOnly = true;
+      uid = await user.id();
+    }
+  } catch {}
+  if (uid) {
+    try { const m = await db.doc('data/users/' + uid + '/me').get(); if (m.exists && m.data().member) { S.me = m.data().member; try { localStorage.setItem(LS_ME, S.me); } catch {} } } catch {}
+  }
+  S.meChecked = true;
+  const timer = setTimeout(() => { S.slow = true; render(); }, 10000);
+  const settle = () => { if (S.expLoaded && S.planLoaded) clearTimeout(timer); };
+  const fail = which => e => { if (which) S[which] = true; settle(); render(); if (e?.code !== 'revoked') toast('同步中斷了，重新整理頁面試試。'); };
+  db.doc('trip/settings').onSnapshot(s => {
+    if (s.exists) { const d = s.data(); if (Array.isArray(d.members) && d.members.length) S.members = d.members; if (d.rate > 0) S.rate = d.rate; if (typeof d.fee === 'number') S.fee = d.fee; }
+    S.settingsLoaded = true;
+    render(); maybeAskMe();
+  }, fail(null));
+  db.doc('trip/flights').onSnapshot(s => { S.flights = s.exists ? s.data() : null; }, () => {});
+  db.collection('expenses').onSnapshot(snap => {
+    S.expenses = snap.docs.map(d => ({id:d.id, ...d.data()}));
+    if (!snap.metadata.fromCache) S.expLoaded = true; else if (snap.size) S.expLoaded = true;
+    settle(); render();
+  }, fail('expLoaded'));
+  db.collection('plan').onSnapshot(snap => {
+    S.plan = snap.docs.map(d => ({id:d.id, ...d.data()}));
+    if (!snap.metadata.fromCache || snap.size) S.planLoaded = true;
+    settle(); render();
+  }, fail('planLoaded'));
+})();
+})();
+</script>
+
+</body>
+</html>
